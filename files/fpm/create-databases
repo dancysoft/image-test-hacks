@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -eu
+
+cd /srv/mediawiki
+
+#########################################
+# Bootstrapping needed for update.php
+phpvers=$(readlink php | sed -e 's/^php-//')
+#touch "wmf-config/ExtensionMessages-$phpvers.php"
+
+#scap wikiversions-compile --staging
+#sudo -u mwdeploy cp wikiversions-dev.php /srv/mediawiki/
+#########################################
+
+cp php/LocalSettings.php php/LocalSettings.php.saved
+trap "mv php/LocalSettings.php.saved php/LocalSettings.php" EXIT
+
+function run_quietly_if_ok {
+    local output
+    output=$(mktemp /tmp/create-databases.XXXXXX)
+
+    if "$@" > "$output" 2>&1; then
+        # Great
+        rm "$output"
+    else
+        # No good
+        cat "$output"
+        rm "$output"
+        exit 1
+    fi
+}
+
+function php_with_errors {
+    php -d display_errors=on -d error_reporting=E_ALL "$@"
+}
+
+function mwscript {
+    php_with_errors multiversion/MWScript.php "$@"
+}
+
+#for wiki in aawiki enwiki labtestwiki testwiki testwikidatawiki; do
+for wiki in enwiki metawiki testwiki; do
+    # install.php won't do anything if it finds LocalSettings.php
+    rm -f php/LocalSettings.php
+    echo $wiki: Performing basic db setup
+    run_quietly_if_ok php php/maintenance/install.php $wiki admin --pass 'W67v*PeN5}S?k^?Z' --dbserver db --dbname $wiki --dbuser wikiuser --dbpass password
+
+    # Now that the basics are set up, use update.php with LocalSettings.php in place.  This
+    # will create additional tables that are required by enabled extensions.
+    cp php/LocalSettings.php.saved php/LocalSettings.php
+    echo $wiki: Update db
+    # --skip-external-dependencies was found to be necessary for
+    # 1.37.0-wmf.3 where there are conflicting version specs for
+    # wikimedia/parsoid between php-1.37.0-wmf.3/composer.json and
+    # php-1.37.0-wmf.3/vendor/composer/installed.json
+    run_quietly_if_ok mwscript maintenance/update.php --wiki=$wiki --quick --skip-external-dependencies
+done

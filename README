@@ -1,0 +1,14 @@
+Edit the first line of Dockerfile.fpm, replacing the existing image
+name with the one you built on your own machine.
+
+Run 'make full'.  Note that this will claim port 8000 on the host.  If
+all goes well the operation will culminate with an HTTP request to
+https://localhost:8000/wiki/Special:Version and a wall of output.
+
+If you have a browswer on the same machine you can visit http://localhost:8000/wiki/Main_Page
+Editing doesn't work (no Swift).
+
+
+
+
+

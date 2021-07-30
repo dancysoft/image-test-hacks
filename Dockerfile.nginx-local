@@ -1,0 +1,8 @@
+FROM nginx
+
+# Install debug tools
+RUN apt-get update && apt-get install -y procps strace lsof net-tools dnsutils telnet emacs-nox
+
+COPY files/nginx/default.conf /etc/nginx/conf.d/
+
+

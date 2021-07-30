@@ -1,0 +1,48 @@
+version: "3.6"
+services:
+  fpm:
+    build:
+      context: .
+      dockerfile: Dockerfile.fpm
+    # privileged: true
+    # cap_add:
+    #   - ALL
+    environment:
+      - PHP__error_log=/dev/stderr
+      - FPM__log_level=debug
+    # This is confusing but we're exposing nginx's port here.
+    ports:
+      - 8000:80
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx-local
+    # privileged: true
+    # cap_add:
+    #   - ALL
+    depends_on:
+      - fpm
+    # This network_mode stuff is a bit clunkly in practice.  e.g.,
+    # sometimes one container will stop being able to connect to a
+    # listening port in another container.  I think is related to
+    # containers restarting but I haven't pinned it down.  If you have
+    # trouble, try 'make down', then 'make up' and see if that gets
+    # things working again.
+    network_mode: service:fpm
+
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+
+  memcached11212:
+    image: memcached
+    command: memcached -p 11212
+    network_mode: service:fpm
+
+  memcached11213:
+    image: memcached
+    command: memcached -p 11213
+    network_mode: service:fpm
+

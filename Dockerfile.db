@@ -1,0 +1,21 @@
+FROM debian:10
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update 
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends sudo ca-certificates vim mariadb-server python3-mysqldb etcd-server etcd-client
+
+# CA stuff
+COPY tls/dev-ca.crt /usr/local/share/ca-certificates/
+RUN /usr/sbin/update-ca-certificates
+
+# mysql
+COPY files/db/99-server-bind-wildcard.cnf /etc/mysql/mariadb.conf.d/99-server-bind-wildcard.cnf
+COPY files/db/99-mediawiki.cnf /etc/mysql/mariadb.conf.d/99-mediawiki.cnf
+
+# etcd
+COPY files/db/etcd /etc/default/etcd
+COPY files/db/dbconfig.json /tmp
+COPY tls/db.pem /var/lib/etcd/etcd-cert.pem
+COPY tls/db-key.pem /var/lib/etcd/etcd-key.pem
+
+COPY files/db/entrypoint.db /entrypoint.db
+ENTRYPOINT [ "/entrypoint.db" ]

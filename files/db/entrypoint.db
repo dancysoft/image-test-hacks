@@ -1,0 +1,62 @@
+#!/bin/bash
+
+set -eu -o pipefail
+
+function wait_for_mysqld {
+    echo -n "Waiting for mysqld..."
+
+    while ! mysqladmin ping; do
+        echo -n "."
+        sleep 1
+    done
+    echo
+    echo mysqld ready
+}
+
+function start_etcd {
+    etcd_base=/var/lib/etcd
+
+    # shellcheck disable=SC2155
+    export ETCD_NAME=$(hostname)
+    export ETCD_DATA_DIR=${etcd_base}/default
+    export ETCD_CERT_FILE=${etcd_base}/etcd-cert.pem
+    export ETCD_KEY_FILE=${etcd_base}/etcd-key.pem
+    export ETCD_LISTEN_CLIENT_URLS="http://127.0.0.1:4001,https://0.0.0.0:2379"
+    export ETCD_ADVERTISE_CLIENT_URLS="https://db:2379"
+
+    mkdir -p ${etcd_base}
+    chown -R etcd: ${etcd_base}
+
+    sudo -u etcd --preserve-env /usr/bin/etcd &
+
+    setup_etcd_mw_config
+}
+
+function setup_etcd_mw_config {
+    echo -n "Waiting for etcd to start..."
+    while ! etcdctl cluster-health; do
+        echo -n "."
+        sleep 1
+    done
+
+    etcdctl set /conftool/v1/mediawiki-config/common/WMFMasterDatacenter '{"val": "dev"}'
+    etcdctl set /conftool/v1/mediawiki-config/dev/ReadOnly '{"val": false}'
+    etcdctl set /conftool/v1/mediawiki-config/dev/dbconfig < /tmp/dbconfig.json
+}
+
+function start_mysqld {
+    /usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld
+    /usr/sbin/mysqld -u mysql &
+    wait_for_mysqld
+    /etc/mysql/debian-start
+
+    mysql -e "create user if not exists 'wikiuser'@'%' identified by 'password';"
+    for db in aawiki enwiki labtestwiki testwiki testwikidatawiki metawiki; do
+        mysql -e "grant all on ${db}.* to 'wikiuser'@'%' with grant option;"
+    done
+}
+
+start_etcd
+start_mysqld
+
+sleep infinity

@@ -1,0 +1,27 @@
+FROM docker-registry.discovery.wmnet/restricted/mediawiki-multiversion:2021-07-29-092024-publish
+
+USER 0
+
+# Install debug tools
+RUN apt-get update && apt-get install -y tcpdump strace lsof net-tools dnsutils telnet emacs-nox vim
+
+# Tweak some config
+
+# etcd TLS stuff
+COPY tls/dev-ca.crt /usr/local/share/ca-certificates/
+RUN /usr/sbin/update-ca-certificates
+
+# Activate train-dev config
+RUN echo dev > /etc/wikimedia-cluster
+
+RUN cp /srv/mediawiki/wikiversions.php /srv/mediawiki/wikiversions-dev.php
+
+# FIXME: fpm base image should make it easy to enable this
+RUN printf "\ncatch_workers_output = true\n" >> /etc/php/7.2/fpm/pool.d/FCGI_TCP.conf
+
+COPY files/fpm/PrivateSettings.php /srv/mediawiki/private/
+
+COPY --chown=www-data files/fpm/create-databases /tmp
+
+USER 33
+
